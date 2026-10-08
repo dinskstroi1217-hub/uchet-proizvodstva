@@ -5,7 +5,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
-STATUS_NAMES = {0: "приход", 1: "уход", 2: "перерыв, уход", 3: "перерыв, приход", 4: "сверхурочно, приход", 5: "сверхурочно, уход"}
+# Как на экране терминала («Статус события»). СУ — сверхурочно.
+STATUS_NAMES = {0: "приход", 1: "уход", 2: "на перерыв", 3: "с перерыва", 4: "СУ приход", 5: "СУ уход"}
 
 
 def require_token(request: Request, authorization: str = Header(default="")) -> None:
