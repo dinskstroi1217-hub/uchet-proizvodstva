@@ -32,6 +32,17 @@ def punches(request: Request, day: date):
     return rows
 
 
+@router.get("/outputs")
+def outputs(request: Request, day: date):
+    """Выпуск бригад за день, как его ввели бригадиры. Отсюда 1С создаёт черновики выпуска для кладовщика."""
+    catalog = request.app.state.catalog
+    rows = request.app.state.db.outputs(day.isoformat())
+    for row in rows:
+        brigade = catalog.brigade(row["brigade_id"])
+        row["brigade_name"] = brigade.name if brigade else row["brigade_id"]
+    return rows
+
+
 @router.post("/devices/{sn}/users")
 def add_user(request: Request, sn: str, user: TerminalUser):
     """Ставит в очередь команду добавить сотрудника на терминал. Лицо регистрируется на самом терминале."""

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Планшет бригадира</title>
+<style>
+/* Экран планшета у терминала. Шрифты системные: планшет может работать без интернета. */
+:root {
+  --bg: #f6f7f4; --surface: #ffffff; --ink: #1d2420; --muted: #5d675f; --line: #d4d9d2;
+  --accent: #e0661b; --accent-soft: #fbe7da; --good: #2f7d4f; --good-soft: #e1f0e6; --bad: #b3261e; --bad-soft: #f9dedc;
+  --f-num: ui-monospace, "Roboto Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #171b18; --surface: #1d221f; --ink: #e8ece7; --muted: #9aa49c; --line: #323a35;
+  --accent: #f08440; --accent-soft: #3a2618; --good: #62b984; --good-soft: #1c3226; --bad: #f2b8b5; --bad-soft: #3b1a18; color-scheme: dark } }
+* { box-sizing: border-box }
+html, body { height: 100% }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; -webkit-user-select: none; user-select: none; overflow: hidden }
+.bar { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--line); background: var(--surface) }
+.who { font-size: 26px; font-weight: 700 }
+.whoSub { font-size: 16px; color: var(--muted) }
+.clock { font-family: var(--f-num); font-size: 20px; color: var(--muted) }
+.idle { flex: 1; display: grid; place-content: center; text-align: center; gap: 12px; padding: 24px }
+.idle .big { font-size: 36px; font-weight: 700; text-wrap: balance }
+.idle .small { font-size: 19px; color: var(--muted) }
+.offline { color: var(--bad) }
+.grid { flex: 1; padding: 18px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; align-content: start; overflow-y: auto }
+.cat { grid-column: 1 / -1; font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin-top: 6px }
+.tile { background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 12px; display: grid; gap: 10px }
+.tile.has { border-color: var(--accent); background: var(--accent-soft) }
+.tname { font-size: 21px; font-weight: 600 }
+.ctl { display: grid; grid-template-columns: 56px 1fr 56px; gap: 6px; align-items: center }
+.ctl button { height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 30px; touch-action: manipulation }
+.num { height: 56px; border-radius: 12px; border: 1px dashed var(--line); background: transparent; color: var(--ink); font: 600 28px var(--f-num) }
+.tile.has .num { border-style: solid; border-color: var(--accent) }
+.foot { padding: 14px 24px 18px; border-top: 1px solid var(--line); background: var(--surface); display: flex; gap: 12px; align-items: center }
+.foot .sum { flex: 1; font-size: 18px; color: var(--muted) }
+.btn { height: 64px; padding: 0 30px; border-radius: 14px; border: 0; font: 600 20px system-ui, sans-serif; touch-action: manipulation }
+.btn.main { background: var(--accent); color: #fff }
+.btn.main:disabled { opacity: .4 }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line) }
+.check { flex: 1; padding: 20px 24px; overflow-y: auto }
+.check h2 { margin: 0 0 12px; font-size: 26px }
+.row { display: flex; justify-content: space-between; font-size: 24px; padding: 12px 0; border-bottom: 1px solid var(--line) }
+.row b { font-family: var(--f-num) }
+.done { flex: 1; display: grid; place-content: center; text-align: center; gap: 10px; background: var(--good-soft); color: var(--good) }
+.done .big { font-size: 38px; font-weight: 700 }
+.done .small { font-size: 19px }
+.error { background: var(--bad-soft); color: var(--bad); padding: 12px 24px; font-size: 18px }
+.pad { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: grid; place-items: center }
+.padBox { background: var(--surface); border-radius: 20px; padding: 18px; width: min(380px, 92%); display: grid; gap: 12px }
+.padName { font-size: 22px; font-weight: 600 }
+.padVal { font: 600 44px var(--f-num); text-align: center; padding: 8px; border-radius: 12px; background: var(--bg) }
+.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+.keys button { height: 64px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 600 26px var(--f-num) }
+.keys .ok { background: var(--accent); color: #fff; border: 0; font: 600 20px system-ui, sans-serif }
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 14px 22px; border-radius: 12px; font-size: 20px }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px }
+</style>
+</head>
+<body>
+<div id="screen" style="display:contents"></div>
+
+<script>
+const SN = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop());
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const POLL_MS = 1500;
+const IDLE_MS = 90000;
+
+let after = -1;
+let online = true;
+let state = { view: "idle" };
+let qty = {};
+let idleTimer, toastTimer;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const now = () => new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const url = (path, params = {}) => `/tablet/${encodeURIComponent(SN)}${path}?` + new URLSearchParams({ key: KEY, ...params });
+
+async function poll() {
+  try {
+    const r = await fetch(url("/poll", { after }), { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    after = data.after;
+    if (!online) { online = true; if (state.view === "idle") render(); }
+    if (data.event) onEvent(data.event);
+  } catch (e) {
+    if (online) { online = false; if (state.view === "idle") render(); }
+  }
+  setTimeout(poll, POLL_MS);
+}
+
+function onEvent(ev) {
+  if (ev.kind === "worker") {
+    // Рабочий отметился, пока бригадир вводит: не мешаем бригадиру.
+    if (state.view === "idle") showToast(`${ev.name}: ${ev.status_name} отмечен`);
+    return;
+  }
+  document.querySelector(".toast")?.remove();
+  qty = { ...ev.qty };
+  state = { view: "enter", ev };
+  render();
+}
+
+function showToast(text) {
+  clearTimeout(toastTimer);
+  document.querySelector(".toast")?.remove();
+  document.body.insertAdjacentHTML("beforeend", `<div class="toast">${esc(text)}</div>`);
+  toastTimer = setTimeout(() => document.querySelector(".toast")?.remove(), 3500);
+}
+
+function toIdle() { state = { view: "idle" }; render(); }
+
+function resetIdle() {
+  clearTimeout(idleTimer);
+  if (state.view === "enter" || state.view === "check") idleTimer = setTimeout(toIdle, IDLE_MS);
+}
+document.addEventListener("pointerdown", resetIdle);
+
+function bar(ev) {
+  return `<div class="bar"><div><div class="who">${esc(ev.name)}</div>
+    <div class="whoSub">${esc(ev.brigade)} · сколько сделали сегодня?</div></div><div class="clock">${now()}</div></div>`;
+}
+
+function render() {
+  const s = $("screen");
+  resetIdle();
+  document.querySelector(".pad")?.remove();
+  if (state.view === "idle") {
+    s.innerHTML = `<div class="idle"><div class="big">Бригадир, отметьтесь на терминале</div>
+      <div class="small ${online ? "" : "offline"}">${online ? "После отметки здесь появятся изделия вашей бригады" : "Нет связи с сервером, проверьте Wi-Fi"}</div></div>`;
+    return;
+  }
+  const ev = state.ev;
+  const all = ev.groups.flatMap(g => g.products);
+  if (state.view === "enter") {
+    const tiles = ev.groups.filter(g => g.products.length).map(g => `<div class="cat">${esc(g.name)}</div>` + g.products.map((name, i) => {
+      const id = esc(name);
+      return `<div class="tile ${qty[name] ? "has" : ""}">
+        <div class="tname">${id}</div>
+        <div class="ctl">
+          <button type="button" data-name="${id}" data-d="-1" aria-label="${id}: меньше">−</button>
+          <button type="button" class="num" data-pad="${id}" aria-label="${id}: ввести число">${qty[name] || 0}</button>
+          <button type="button" data-name="${id}" data-d="1" aria-label="${id}: больше">+</button>
+        </div></div>`;
+    }).join("")).join("");
+    const n = all.filter(name => qty[name]).length;
+    s.innerHTML = bar(ev) + (state.error ? `<div class="error">${esc(state.error)}</div>` : "") + `<div class="grid">${tiles}</div>
+      <div class="foot"><div class="sum">${n ? "Заполнено позиций: " + n : "Нажмите + у изделий, которые сделали"}</div>
+        <button class="btn ghost" type="button" id="cancel">Отмена</button>
+        <button class="btn main" type="button" id="next" ${n ? "" : "disabled"}>Дальше</button></div>`;
+    s.querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+      const name = b.dataset.name; qty[name] = Math.max(0, (qty[name] || 0) + Number(b.dataset.d)); keepScroll(render);
+    });
+    s.querySelectorAll("[data-pad]").forEach(b => b.onclick = () => openPad(b.dataset.pad));
+    $("cancel").onclick = toIdle;
+    $("next").onclick = () => { state.view = "check"; state.error = ""; render(); };
+    return;
+  }
+  if (state.view === "check") {
+    const rows = all.filter(name => qty[name]);
+    s.innerHTML = bar(ev) + (state.error ? `<div class="error">${esc(state.error)}</div>` : "") + `<div class="check"><h2>Проверьте</h2>
+      ${rows.map(name => `<div class="row"><span>${esc(name)}</span><b>${qty[name]} шт.</b></div>`).join("")}</div>
+      <div class="foot"><div class="sum"></div>
+        <button class="btn ghost" type="button" id="back">Исправить</button>
+        <button class="btn main" type="button" id="send">Всё верно</button></div>`;
+    $("back").onclick = () => { state.view = "enter"; render(); };
+    $("send").onclick = send;
+    return;
+  }
+  if (state.view === "done") {
+    s.innerHTML = `<div class="done"><div class="big">Спасибо, записано</div>
+      <div class="small">Кладовщик проверит. Ошиблись — отметьтесь ещё раз и исправьте.</div></div>`;
+    setTimeout(() => { if (state.view === "done") toIdle(); }, 4000);
+  }
+}
+
+async function send() {
+  const btn = $("send");
+  btn.disabled = true; btn.textContent = "Отправляю…";
+  const body = { session: state.ev.session, qty: Object.fromEntries(Object.entries(qty).filter(([, n]) => n > 0)) };
+  try {
+    const r = await fetch(url("/output"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.ok) { state.view = "done"; render(); return; }
+    const detail = (await r.json().catch(() => ({}))).detail;
+    state.error = typeof detail === "string" ? detail : "Не получилось сохранить, попробуйте ещё раз";
+  } catch (e) {
+    state.error = "Нет связи с сервером, попробуйте ещё раз";
+  }
+  render();
+}
+
+function keepScroll(fn) {
+  const y = document.querySelector(".grid")?.scrollTop || 0;
+  fn();
+  const g = document.querySelector(".grid"); if (g) g.scrollTop = y;
+}
+
+function openPad(name) {
+  let val = String(qty[name] || "");
+  const box = document.createElement("div");
+  box.className = "pad";
+  const draw = () => {
+    box.innerHTML = `<div class="padBox" role="dialog" aria-label="Ввод количества">
+      <div class="padName">${esc(name)}</div>
+      <div class="padVal">${val || "0"}</div>
+      <div class="keys">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button type="button" data-k="${k}">${k}</button>`).join("")}
+        <button type="button" data-k="del" aria-label="Стереть">⌫</button><button type="button" data-k="0">0</button>
+        <button type="button" class="ok" data-k="ok">Готово</button></div></div>`;
+    box.querySelectorAll("[data-k]").forEach(k => k.onclick = () => {
+      const v = k.dataset.k;
+      if (v === "ok") { qty[name] = parseInt(val || "0", 10); box.remove(); keepScroll(render); return; }
+      if (v === "del") val = val.slice(0, -1); else if (val.length < 4) val = (val + v).replace(/^0+/, "");
+      draw();
+    });
+  };
+  box.onclick = e => { if (e.target === box) box.remove(); };
+  draw();
+  document.body.appendChild(box);
+}
+
+render();
+poll();
+</script>
+</body>
+</html>
